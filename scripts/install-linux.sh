@@ -122,32 +122,38 @@ case $DISTRO in
         ;;
 esac
 
-# Install Node Version Manager (nvm)
-if [ ! -d "$HOME/.nvm" ]; then
-    print_info "Installing Node Version Manager (nvm)..."
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+# Install Node.js using NodeSource repository
+if ! command -v node &> /dev/null; then
+    print_info "Installing Node.js from NodeSource repository..."
     
-    # Load nvm
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    # Determine Node.js version to install
+    if [[ "$NODE_VERSION" == "lts" ]]; then
+        NODE_MAJOR="20"  # Current LTS version
+    else
+        NODE_MAJOR="$NODE_VERSION"
+    fi
     
-    print_success "nvm installed successfully"
+    case $DISTRO in
+        ubuntu|debian)
+            # Add NodeSource repository
+            curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            ;;
+        centos|rhel|fedora)
+            # Add NodeSource repository
+            curl -fsSL https://rpm.nodesource.com/setup_${NODE_MAJOR}.x | sudo bash -
+            if command -v dnf &> /dev/null; then
+                sudo dnf install -y nodejs npm
+            else
+                sudo yum install -y nodejs npm
+            fi
+            ;;
+    esac
+    
+    print_success "Node.js installed successfully"
 else
-    print_success "nvm is already installed"
+    print_success "Node.js is already installed"
 fi
-
-# Load nvm
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-# Install Node.js with nvm
-print_info "Installing Node.js ($NODE_VERSION)..."
-nvm install $NODE_VERSION
-nvm use $NODE_VERSION
-nvm alias default $NODE_VERSION
-
-print_success "Node.js installed successfully"
 
 # Verify installation
 NODE_VER=$(node --version)
@@ -333,20 +339,19 @@ elif [[ -f "$HOME/.profile" ]]; then
 fi
 
 if [[ -n "$SHELL_PROFILE" ]]; then
-    # Add nvm to shell profile if not already present
-    if ! grep -q "NVM_DIR" "$SHELL_PROFILE"; then
-        echo "" >> "$SHELL_PROFILE"
-        echo "# Node Version Manager" >> "$SHELL_PROFILE"
-        echo 'export NVM_DIR="$HOME/.nvm"' >> "$SHELL_PROFILE"
-        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "$SHELL_PROFILE"
-        echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> "$SHELL_PROFILE"
-        print_success "nvm added to shell profile"
-    fi
-    
     # Add yarn global bin to PATH if not present
     if ! grep -q "yarn global bin" "$SHELL_PROFILE"; then
+        echo "" >> "$SHELL_PROFILE"
+        echo "# Yarn global packages" >> "$SHELL_PROFILE"
         echo 'export PATH="$(yarn global bin):$PATH"' >> "$SHELL_PROFILE"
         print_success "Yarn global bin added to PATH"
+    fi
+    
+    # Add npm global bin to PATH if not present
+    if ! grep -q "npm-global/bin" "$SHELL_PROFILE"; then
+        echo "# npm global packages" >> "$SHELL_PROFILE"
+        echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$SHELL_PROFILE"
+        print_success "npm global bin added to PATH"
     fi
 fi
 
@@ -376,7 +381,7 @@ print_info "Next steps:"
 print_info "1. Restart your terminal or run: source ~/.bashrc"
 print_info "2. Create a new React project: npx create-react-app my-app"
 print_info "3. Or start with Express: npm init -y && npm install express"
-print_info "4. Use nvm to switch Node versions: nvm use 18"
+print_info "4. Check installed Node.js version: node --version"
 if command -v docker &> /dev/null; then
     print_info "5. Log out and log back in for Docker group membership"
 fi
